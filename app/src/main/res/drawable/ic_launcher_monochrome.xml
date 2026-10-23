@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <!-- Monochrome KomiX launcher mark, matching the color launcher icon. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M108,102h60v100l110,-100h90L243,216l127,114h-85L168,232v102h-60z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M324,78l9,13 13,7-13,7-9,13-9-13-13-7 13-7z" />
+</vector>

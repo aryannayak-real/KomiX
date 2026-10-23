@@ -1,0 +1,22 @@
+# Build files
+.gradle
+#.vscode
+.kotlin
+build
+
+# IDE files
+*.iml
+# Updated for KomiX: keep local IDE metadata out of the distribution.
+.idea/*
+/captures
+.history
+
+# Configuration files
+local.properties
+
+# macOS specific files
+.DS_Store
+
+/app/client_secrets.json
+/app/google-services.json
+*.jks
