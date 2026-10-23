@@ -154,8 +154,8 @@ data object LibraryTab : Tab {
                     onClickSelectAll = screenModel::selectAll,
                     onClickInvertSelection = screenModel::invertSelection,
                     onClickFilter = screenModel::showSettingsDialog,
-                    onClickRefresh = { onClickRefresh(state.activeCategory) },
-                    onClickGlobalUpdate = { onClickRefresh(null) },
+                    onClickRefresh = { scope.launch { onClickRefresh(state.activeCategory) } },
+                    onClickGlobalUpdate = { scope.launch { onClickRefresh(null) } },
                     onClickOpenRandomManga = {
                         scope.launch {
                             val randomItem = screenModel.getRandomLibraryItemForCurrentCategory()
