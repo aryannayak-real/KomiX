@@ -29,20 +29,68 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
 
-      - name: Verify APK was generated
+      - name: Verify and stage installable APKs
         shell: bash
         run: |
-          apk="$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          if [[ -z "$apk" ]]; then
-            echo "::error::The debug build completed without generating an APK in app/build/outputs/apk/debug."
+          set -euo pipefail
+          apk_dir="app/build/outputs/apk/debug"
+          universal_apk="$(find "$apk_dir" -maxdepth 1 -type f -iname '*universal*.apk' -print -quit)"
+          arm64_apk="$(find "$apk_dir" -maxdepth 1 -type f -iname '*arm64-v8a*.apk' -print -quit)"
+
+          if [[ -z "$universal_apk" || -z "$arm64_apk" ]]; then
+            echo "::error::Expected universal and arm64-v8a debug APKs in $apk_dir."
+            find "$apk_dir" -maxdepth 1 -type f -print || true
             exit 1
           fi
-          echo "Found debug APK: $apk"
 
-      - name: Upload debug APK
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [[ -z "$sdk_root" || ! -d "$sdk_root/build-tools" ]]; then
+            echo "::error::Android SDK build-tools were not found; cannot verify the generated APKs."
+            exit 1
+          fi
+          build_tools="$(find "$sdk_root/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -n 1)"
+          apksigner="$build_tools/apksigner"
+          aapt="$build_tools/aapt"
+          if [[ ! -x "$apksigner" || ! -x "$aapt" ]]; then
+            echo "::error::Android build-tools must provide executable apksigner and aapt."
+            exit 1
+          fi
+
+          "$apksigner" verify --verbose "$universal_apk"
+          "$apksigner" verify --verbose "$arm64_apk"
+
+          universal_info="$("$aapt" dump badging "$universal_apk")"
+          arm64_info="$("$aapt" dump badging "$arm64_apk")"
+          for info in "$universal_info" "$arm64_info"; do
+            grep -Fq "package: name='app.komikku.dev'" <<< "$info"
+            grep -Fq "sdkVersion:'26'" <<< "$info"
+            grep -Fq "targetSdkVersion:'36'" <<< "$info"
+          done
+          if ! grep -Fq "'arm64-v8a'" <<< "$arm64_info"; then
+            echo "::error::The ARM64 APK does not report the arm64-v8a native ABI."
+            exit 1
+          fi
+          if ! grep -Fq "'arm64-v8a'" <<< "$universal_info"; then
+            echo "::error::The universal APK does not contain arm64-v8a native libraries."
+            exit 1
+          fi
+
+          mkdir -p artifacts
+          cp "$universal_apk" artifacts/KomiX-universal-debug.apk
+          cp "$arm64_apk" artifacts/KomiX-arm64-v8a-debug.apk
+
+      - name: Upload universal debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: KomiX-debug-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: KomiX-universal-debug-APK
+          path: artifacts/KomiX-universal-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload ARM64 debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KomiX-arm64-v8a-debug-APK
+          path: artifacts/KomiX-arm64-v8a-debug.apk
           if-no-files-found: error
           retention-days: 7

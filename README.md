@@ -13,17 +13,23 @@ This README replaces inherited project documentation for the KomiX distribution.
 
 ## Build
 
-Install JDK 21 and the Android SDK, then build the existing debug application with
-the Gradle wrapper:
+Install JDK 21 and Android SDK Platform 36, then build the existing debug
+application with the Gradle wrapper:
 
 ```sh
 ./gradlew :app:assembleDebug
 ```
 
-## Download a debug APK
+## Download and install a debug APK
 
 In the GitHub repository, open **Actions**, select **Build KomiX APK**, and open
-a successful run. Download the `KomiX-debug-APK` artifact from that run.
+a successful run. Download either `KomiX-universal-debug-APK` (recommended for
+most phones) or `KomiX-arm64-v8a-debug-APK` (for ARM64 phones).
+
+GitHub downloads each Actions artifact as a ZIP. On your phone, extract that ZIP
+in the Files app and install the `.apk` inside it; do not try to install the ZIP
+or a GitHub source-code archive. If Android blocks sideloading, allow the Files
+app to install unknown apps, then retry the extracted APK.
 
 ## License and attribution
 
