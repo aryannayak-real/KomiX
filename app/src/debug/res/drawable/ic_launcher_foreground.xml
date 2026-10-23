@@ -3,11 +3,18 @@
     android:height="108dp"
     android:viewportWidth="432"
     android:viewportHeight="432">
-    <!-- KomiX-specific mark replacing the inherited Komikku launcher graphic. -->
     <path
         android:fillColor="#14233A"
-        android:pathData="M108,102h60v100l110,-100h90L243,216l127,114h-85L168,232v102h-60z" />
+        android:pathData="M92,119 C124,100 169,96 210,120 L216,126 C257,102 302,100 340,119 L340,316 C300,299 257,303 216,328 C175,303 132,299 92,316 Z" />
     <path
-        android:fillColor="#4457D9"
-        android:pathData="M324,78l9,13 13,7-13,7-9,13-9-13-13-7 13-7z" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M110,141 C140,130 175,133 202,151 L202,295 C173,280 141,278 110,290 Z M230,151 C257,133 292,130 322,141 L322,290 C291,278 259,280 230,295 Z" />
+    <path
+        android:strokeColor="#556AE8"
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:pathData="M130,170h49 M130,204h59 M130,238h48 M253,170h49 M243,204h59 M253,238h48 M216,132v180" />
+    <path
+        android:fillColor="#556AE8"
+        android:pathData="M314,83l7,-7 8,8 8,-8 7,7-8,8 8,8-7,7-8,-8-8,8-7,-7 8,-8z" />
 </vector>

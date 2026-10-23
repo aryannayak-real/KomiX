@@ -152,6 +152,13 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             if (context.workManager.isRunning(WORK_NAME_MANUAL)) {
                 return Result.retry()
             }
+        } else if (
+            tags.contains(WORK_NAME_MANUAL) &&
+            context.workManager.isRunning(WORK_NAME_AUTO)
+        ) {
+            // Manual and scheduled updates share network and database resources. Defer this worker
+            // rather than running both full-library passes at once.
+            return Result.retry()
         }
 
         // KMK -->
@@ -463,6 +470,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                                         }
                                         clearErrorFromDB(mangaId = manga.id)
                                     } catch (e: Throwable) {
+                                        if (e is CancellationException) throw e
                                         val errorMessage = when (e) {
                                             is NoChaptersException ->
                                                 context.stringResource(MR.strings.no_chapters_error)
@@ -501,12 +509,12 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         }
     }
 
-    private fun downloadChapters(manga: Manga, chapters: List<Chapter>) {
+    private suspend fun downloadChapters(manga: Manga, chapters: List<Chapter>) {
         // We don't want to start downloading while the library is updating, because websites
         // may don't like it and they could ban the user.
         // SY -->
         if (manga.source == MERGED_SOURCE_ID) {
-            val downloadingManga = runBlocking { getMergedMangaForDownloading.await(manga.id) }
+            val downloadingManga = getMergedMangaForDownloading.await(manga.id)
                 .associateBy { it.id }
             chapters.groupBy { it.mangaId }
                 .forEach {
@@ -796,7 +804,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             }
         }
 
-        fun startNow(
+        suspend fun startNow(
             context: Context,
             category: Category? = null,
             target: Target = Target.CHAPTERS,
@@ -809,9 +817,9 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // KMK <--
         ): Boolean {
             val wm = context.workManager
-            // Check if the LibraryUpdateJob is already running
-            if (wm.isRunning(TAG)) {
-                // Already running either as a scheduled or manual job
+            // WorkManager's isRunning() waits on a ListenableFuture. Keep that query off the UI
+            // dispatcher; KEEP below remains the atomic guard against concurrent manual requests.
+            if (withIOContext { wm.isRunning(TAG) }) {
                 return false
             }
 
@@ -831,9 +839,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
             // Always sync the data before library update if syncing is enabled.
             if (syncPreferences.isSyncEnabled()) {
-                // Check if SyncDataJob is already running
-                if (SyncDataJob.isRunning(context)) {
-                    // SyncDataJob is already running
+                if (withIOContext { SyncDataJob.isRunning(context) }) {
                     return false
                 }
 

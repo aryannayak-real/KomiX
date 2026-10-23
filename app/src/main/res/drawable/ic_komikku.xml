@@ -1,13 +1,18 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="200dp"
     android:height="200dp"
-    android:viewportWidth="138"
-    android:viewportHeight="149">
-    <!-- KomiX-specific mark replacing the inherited Komikku logo. -->
+    android:viewportWidth="432"
+    android:viewportHeight="432">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M18,13h29v49l48,-49h38L79,75l56,57H96L47,88v44H18z" />
+        android:fillType="evenOdd"
+        android:pathData="M92,119 C124,100 169,96 210,120 L216,126 C257,102 302,100 340,119 L340,316 C300,299 257,303 216,328 C175,303 132,299 92,316 Z" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M116,5l4,7 7,4-7,4-4,7-4-7-7-4 7-4z" />
+        android:strokeColor="#FF556AE8"
+        android:strokeWidth="12"
+        android:strokeLineCap="round"
+        android:pathData="M126,168h54 M126,205h65 M126,242h54 M252,168h54 M241,205h65 M252,242h54 M216,136v172" />
+    <path
+        android:fillColor="#FF556AE8"
+        android:pathData="M314,83l7,-7 8,8 8,-8 7,7-8,8 8,8-7,7-8,-8-8,8-7,-7 8,-8z" />
 </vector>

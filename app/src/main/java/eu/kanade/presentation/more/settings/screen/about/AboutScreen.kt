@@ -2,13 +2,7 @@ package eu.kanade.presentation.more.settings.screen.about
 
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +26,6 @@ import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
 import eu.kanade.tachiyomi.ui.more.ComingUpdatesScreen
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
-import eu.kanade.tachiyomi.ui.more.WhatsNewScreen
 import eu.kanade.tachiyomi.util.CrashLogUtil
 import eu.kanade.tachiyomi.util.lang.toDateTimestampString
 import eu.kanade.tachiyomi.util.system.copyToClipboard
@@ -49,13 +42,9 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
-import tachiyomi.presentation.core.components.LinkIcon
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.icons.CustomIcons
-import tachiyomi.presentation.core.icons.Discord
-import tachiyomi.presentation.core.icons.Github
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.Instant
@@ -74,7 +63,6 @@ class AboutScreen : Screen() {
         var isCheckingUpdates by remember { mutableStateOf(false) }
 
         // KMK -->
-        var isCheckingWhatsNew by remember { mutableStateOf(false) }
         var isCheckingWhatsComing by remember { mutableStateOf(false) }
         // KMK <--
 
@@ -97,7 +85,7 @@ class AboutScreen : Screen() {
                 item {
                     TextPreferenceWidget(
                         title = stringResource(MR.strings.version),
-                        subtitle = getVersionName(withBuildDate = true),
+                        subtitle = BuildConfig.VERSION_NAME,
                         onPreferenceClick = {
                             val deviceInfo = CrashLogUtil(context).getDebugInfo()
                             context.copyToClipboard("Debug information", deviceInfo)
@@ -145,43 +133,6 @@ class AboutScreen : Screen() {
                 }
 
                 // KMK -->
-                item {
-                    TextPreferenceWidget(
-                        title = stringResource(MR.strings.whats_new),
-                        widget = {
-                            AnimatedVisibility(visible = isCheckingWhatsNew) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(28.dp),
-                                    strokeWidth = 3.dp,
-                                )
-                            }
-                        },
-                        onPreferenceClick = {
-                            if (!isCheckingWhatsNew) {
-                                scope.launch {
-                                    isCheckingWhatsNew = true
-
-                                    getReleaseNotes(
-                                        context = context,
-                                        onAvailableUpdate = { result ->
-                                            val whatsNewScreen = WhatsNewScreen(
-                                                currentVersion = BuildConfig.VERSION_NAME,
-                                                versionName = result.release.version,
-                                                changelogInfo = result.release.info,
-                                                releaseLink = result.release.releaseLink,
-                                            )
-                                            navigator.push(whatsNewScreen)
-                                        },
-                                        onFinish = {
-                                            isCheckingWhatsNew = false
-                                        },
-                                    )
-                                }
-                            }
-                        },
-                    )
-                }
-
                 if (isReleaseBuildType || isDebugBuildType) {
                     item {
                         TextPreferenceWidget(
@@ -249,24 +200,11 @@ class AboutScreen : Screen() {
                 }
 
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        LinkIcon(
-                            label = stringResource(MR.strings.website),
-                            icon = Icons.Outlined.Public,
-                            url = "https://komikku-app.github.io",
-                        )
-                        LinkIcon(
-                            label = "Discord",
-                            icon = CustomIcons.Discord,
-                            url = "https://discord.gg/85jB7V5AJR",
-                        )
-                        // KomiX repository URL is not configured; do not link to the inherited upstream account.
-                    }
+                    TextPreferenceWidget(title = stringResource(MR.strings.website_coming_soon))
+                }
+
+                item {
+                    TextPreferenceWidget(title = stringResource(MR.strings.discord_coming_soon))
                 }
             }
         }

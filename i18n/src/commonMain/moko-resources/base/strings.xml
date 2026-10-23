@@ -641,6 +641,8 @@
 
       <!-- About section -->
     <string name="website">Website</string>
+    <string name="website_coming_soon">Website — Coming soon</string>
+    <string name="discord_coming_soon">Discord — Coming soon</string>
     <string name="version">Version</string>
     <string name="whats_new">What\'s new</string>
     <string name="help_translate">Help translate</string>

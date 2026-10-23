@@ -1076,7 +1076,7 @@ class LibraryScreenModel(
     /**
      * Update Selected Mangas
      */
-    fun updateSelectedManga(): Boolean {
+    suspend fun updateSelectedManga(): Boolean {
         val mangaIds = state.value.selection.toList()
         return LibraryUpdateJob.startNow(
             context = preferences.context,

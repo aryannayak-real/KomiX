@@ -118,21 +118,21 @@ data object LibraryTab : Tab {
 
         val snackbarHostState = remember { SnackbarHostState() }
 
-        val onClickRefresh: (Category?) -> Boolean = { category ->
-            // SY -->
-            val started = LibraryUpdateJob.startNow(
-                context = context,
-                category = if (state.groupType == LibraryGroup.BY_DEFAULT) category else null,
-                group = state.groupType,
-                groupExtra = when (state.groupType) {
-                    LibraryGroup.BY_DEFAULT -> null
-                    LibraryGroup.BY_SOURCE, LibraryGroup.BY_TRACK_STATUS -> category?.id?.toString()
-                    LibraryGroup.BY_STATUS -> category?.id?.minus(1)?.toString()
-                    else -> null
-                },
-            )
-            // SY <--
+        val onClickRefresh: (Category?) -> Unit = { category ->
             scope.launch {
+                // SY -->
+                val started = LibraryUpdateJob.startNow(
+                    context = context,
+                    category = if (state.groupType == LibraryGroup.BY_DEFAULT) category else null,
+                    group = state.groupType,
+                    groupExtra = when (state.groupType) {
+                        LibraryGroup.BY_DEFAULT -> null
+                        LibraryGroup.BY_SOURCE, LibraryGroup.BY_TRACK_STATUS -> category?.id?.toString()
+                        LibraryGroup.BY_STATUS -> category?.id?.minus(1)?.toString()
+                        else -> null
+                    },
+                )
+                // SY <--
                 val msgRes = when {
                     !started -> MR.strings.update_already_running
                     category != null -> MR.strings.updating_category
@@ -140,7 +140,6 @@ data object LibraryTab : Tab {
                 }
                 snackbarHostState.showSnackbar(context.stringResource(msgRes))
             }
-            started
         }
 
         Scaffold(
@@ -258,8 +257,8 @@ data object LibraryTab : Tab {
                         }
                     },
                     onSelectionUpdateClicked = {
-                        val started = screenModel.updateSelectedManga()
                         scope.launch {
+                            val started = screenModel.updateSelectedManga()
                             val msgRes = if (started) {
                                 KMR.strings.updating
                             } else {
