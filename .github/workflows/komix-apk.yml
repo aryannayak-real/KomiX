@@ -63,7 +63,8 @@ jobs:
           arm64_info="$("$aapt" dump badging "$arm64_apk")"
           for info in "$universal_info" "$arm64_info"; do
             grep -Fq "package: name='app.komikku.dev'" <<< "$info"
-            grep -Fq "versionName='1.14.2'" <<< "$info"
+            grep -Fq "versionName='1.14.3'" <<< "$info"
+            grep -Fq "versionCode='84'" <<< "$info"
             grep -Fq "sdkVersion:'26'" <<< "$info"
             grep -Fq "targetSdkVersion:'36'" <<< "$info"
           done

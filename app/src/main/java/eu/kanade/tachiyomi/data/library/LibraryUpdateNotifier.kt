@@ -77,12 +77,14 @@ class LibraryUpdateNotifier(
      */
     val progressNotificationBuilder by lazy {
         context.notificationBuilder(Notifications.CHANNEL_LIBRARY_PROGRESS) {
-            setContentTitle(context.stringResource(MR.strings.app_name))
+            setContentTitle(context.stringResource(MR.strings.updating_library))
+            setContentText(context.stringResource(MR.strings.notification_update_preparing))
             setSmallIcon(R.drawable.ic_refresh_24dp)
             setColor(ContextCompat.getColor(context, R.color.ic_launcher))
             setLargeIcon(notificationBitmap)
             setOngoing(true)
             setOnlyAlertOnce(true)
+            setProgress(0, 0, true)
             addAction(R.drawable.ic_close_24dp, context.stringResource(MR.strings.action_cancel), cancelIntent)
         }
     }
@@ -95,29 +97,46 @@ class LibraryUpdateNotifier(
      * @param total the total progress.
      */
     suspend fun showProgressNotification(manga: List<Manga>, current: Int, total: Int) {
-        progressNotificationBuilder
-            .setContentTitle(
-                context.stringResource(
-                    MR.strings.notification_updating_progress,
-                    percentFormatter.format(current.toFloat() / total),
-                ),
+        val hasProgress = total > 0
+        val safeCurrent = if (hasProgress) current.coerceIn(0, total) else 0
+        val progress = if (hasProgress) safeCurrent.toFloat() / total else 0f
+
+        synchronized(progressNotificationBuilder) {
+            progressNotificationBuilder
+                .setContentTitle(
+                    if (hasProgress) {
+                        context.stringResource(
+                            MR.strings.notification_updating_progress,
+                            percentFormatter.format(progress),
+                        )
+                    } else {
+                        context.stringResource(MR.strings.updating_library)
+                    },
+                )
+                .setContentText(
+                    if (hasProgress) {
+                        context.stringResource(MR.strings.notification_update_count, safeCurrent, total)
+                    } else {
+                        context.stringResource(MR.strings.notification_update_preparing)
+                    },
+                )
+
+            if (!securityPreferences.hideNotificationContent().get()) {
+                val updatingText = manga.joinToString("\n") { it.title.chop(40) }
+                progressNotificationBuilder.setStyle(NotificationCompat.BigTextStyle().bigText(updatingText))
+            }
+
+            context.notify(
+                Notifications.ID_LIBRARY_PROGRESS,
+                progressNotificationBuilder
+                    .setProgress(total.coerceAtLeast(0), safeCurrent, !hasProgress)
+                    .build(),
             )
-
-        // KMK -->
-        libraryUpdateStatus.updateProgress(current.toFloat() / total)
-        // KMK <--
-
-        if (!securityPreferences.hideNotificationContent().get()) {
-            val updatingText = manga.joinToString("\n") { it.title.chop(40) }
-            progressNotificationBuilder.setStyle(NotificationCompat.BigTextStyle().bigText(updatingText))
         }
 
-        context.notify(
-            Notifications.ID_LIBRARY_PROGRESS,
-            progressNotificationBuilder
-                .setProgress(total, current, false)
-                .build(),
-        )
+        // KMK -->
+        libraryUpdateStatus.updateProgress(progress)
+        // KMK <--
     }
 
     /**

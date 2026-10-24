@@ -121,6 +121,41 @@ class GetApplicationReleaseTest {
     }
 
     @Test
+    fun `draft and prerelease versions are not offered as stable updates`() = runTest {
+        every { preference.get() } returns 0
+        every { preference.set(any()) }.answers { }
+
+        coEvery { releaseService.releaseNotes(any()) } returns listOf(
+            Release(
+                "v3.0.0",
+                "draft",
+                "https://example.com/draft",
+                "https://example.com/draft.apk",
+                draft = true,
+            ),
+            Release(
+                "v4.0.0-rc.1",
+                "prerelease",
+                "https://example.com/prerelease",
+                "https://example.com/prerelease.apk",
+                preRelease = true,
+            ),
+        )
+
+        val result = getApplicationRelease.await(
+            GetApplicationRelease.Arguments(
+                isFoss = false,
+                isPreview = false,
+                commitCount = 0,
+                versionName = "v2.0.0",
+                repository = "test",
+            ),
+        )
+
+        result shouldBe GetApplicationRelease.Result.NoNewUpdate
+    }
+
+    @Test
     fun `When now is before two days expect no new update`() = runTest {
         every { preference.get() } returns Instant.now().toEpochMilli()
         every { preference.set(any()) }.answers { }

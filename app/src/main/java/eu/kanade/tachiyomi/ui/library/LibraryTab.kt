@@ -135,7 +135,9 @@ data object LibraryTab : Tab {
                 category != null -> MR.strings.updating_category
                 else -> MR.strings.updating_library
             }
-            snackbarHostState.showSnackbar(context.stringResource(msgRes))
+            scope.launch {
+                snackbarHostState.showSnackbar(context.stringResource(msgRes))
+            }
             started
         }
 

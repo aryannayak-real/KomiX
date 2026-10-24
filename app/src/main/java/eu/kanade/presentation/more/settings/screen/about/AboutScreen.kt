@@ -1,6 +1,9 @@
 package eu.kanade.presentation.more.settings.screen.about
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +48,8 @@ import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.icons.CustomIcons
+import tachiyomi.presentation.core.icons.Discord
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.Instant
@@ -204,7 +209,22 @@ class AboutScreen : Screen() {
                 }
 
                 item {
-                    TextPreferenceWidget(title = stringResource(MR.strings.discord_coming_soon))
+                    TextPreferenceWidget(
+                        title = stringResource(MR.strings.join_discord),
+                        icon = CustomIcons.Discord,
+                        onPreferenceClick = {
+                            try {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://discord.gg/2cjYmM5H7s"),
+                                    ),
+                                )
+                            } catch (_: ActivityNotFoundException) {
+                                context.toast(MR.strings.discord_link_unavailable)
+                            }
+                        },
+                    )
                 }
             }
         }

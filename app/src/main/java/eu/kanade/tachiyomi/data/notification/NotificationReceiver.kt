@@ -186,7 +186,14 @@ class NotificationReceiver : BroadcastReceiver() {
      * @param context context of application
      */
     private fun cancelLibraryUpdate(context: Context) {
-        LibraryUpdateJob.stop(context)
+        val pendingResult = goAsync()
+        launchIO {
+            try {
+                LibraryUpdateJob.stop(context)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     private fun startDownloadAppUpdate(context: Context, intent: Intent) {

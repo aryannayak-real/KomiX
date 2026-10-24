@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.main
 import android.animation.ValueAnimator
 import android.app.SearchManager
 import android.app.assist.AssistContent
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -17,17 +18,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.animation.doOnEnd
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen
@@ -68,6 +77,7 @@ import eu.kanade.presentation.more.settings.screen.about.AboutScreen.Companion.g
 import eu.kanade.presentation.more.settings.screen.about.WhatsNewDialog
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionStoresScreen
 import eu.kanade.presentation.more.settings.screen.data.RestoreBackupScreen
+import eu.kanade.presentation.manga.components.MarkdownRender
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.DefaultNavigatorScreenTransition
 import eu.kanade.tachiyomi.BuildConfig
@@ -81,8 +91,8 @@ import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
-import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
-import eu.kanade.tachiyomi.data.updater.AppUpdateJob
+import eu.kanade.tachiyomi.data.updater.KomiXRelease
+import eu.kanade.tachiyomi.data.updater.KomiXUpdateChecker
 import eu.kanade.tachiyomi.extension.api.ExtensionApi
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
@@ -91,7 +101,6 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import eu.kanade.tachiyomi.ui.deeplink.DeepLinkScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
-import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.ui.more.WhatsNewScreen
 import eu.kanade.tachiyomi.util.system.dpToPx
@@ -99,12 +108,12 @@ import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim
 import eu.kanade.tachiyomi.util.system.isPreviewBuildType
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
-import eu.kanade.tachiyomi.util.system.updaterEnabled
 import eu.kanade.tachiyomi.util.view.setComposeContent
 import exh.debug.DebugToggles
 import exh.eh.EHentaiUpdateWorker
 import exh.log.DebugModeOverlay
 import exh.source.ExhPreferences
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
@@ -126,10 +135,10 @@ import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
-import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.Scaffold
+import tachiyomi.presentation.core.i18n.stringResource as composeStringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -545,29 +554,73 @@ class MainActivity : BaseActivity() {
     @Composable
     private fun CheckForUpdates() {
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val checker = remember { KomiXUpdateChecker() }
+        var updateAvailable by remember { mutableStateOf<KomiXRelease?>(null) }
 
-        // App updates
         LaunchedEffect(Unit) {
-            if (updaterEnabled) {
-                try {
-                    // KMK -->
-                    AppUpdateJob.setupTask(context)
-                    // KMK <--
-                    val result = AppUpdateChecker().checkForUpdate(context)
-                    if (result is GetApplicationRelease.Result.NewUpdate) {
-                        val updateScreen = NewUpdateScreen(
-                            versionName = result.release.version,
-                            changelogInfo = result.release.info,
-                            releaseLink = result.release.releaseLink,
-                            downloadLink = result.release.downloadLink,
-                        )
-                        navigator.push(updateScreen)
-                    }
-                } catch (e: Exception) {
-                    logcat(LogPriority.ERROR, e)
+            try {
+                val release = withContext(Dispatchers.IO) {
+                    checker.checkForUpdate(BuildConfig.VERSION_NAME)
                 }
+                if (release != null && !checker.wasDismissed(release.tag)) {
+                    updateAvailable = release
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Update checks are best-effort. The app remains usable when GitHub is offline,
+                // unavailable, rate-limited, or returns an invalid response.
+                logcat(LogPriority.WARN, e)
             }
+        }
+
+        updateAvailable?.let { release ->
+            val changelog = release.changelog.ifBlank {
+                composeStringResource(MR.strings.app_update_release_notes_unavailable)
+            }
+            val openFailedMessage = composeStringResource(MR.strings.app_update_open_failed)
+            val dismiss = {
+                checker.dismiss(release.tag)
+                updateAvailable = null
+            }
+            AlertDialog(
+                onDismissRequest = dismiss,
+                title = {
+                    Text(composeStringResource(MR.strings.app_update_available_title, release.version))
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 400.dp)
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        MarkdownRender(content = changelog, loadImages = false)
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, release.releaseUrl.toUri()))
+                                dismiss()
+                            } catch (_: ActivityNotFoundException) {
+                                Toast.makeText(
+                                    context,
+                                    openFailedMessage,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        },
+                    ) {
+                        Text(composeStringResource(MR.strings.app_update_now))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = dismiss) {
+                        Text(composeStringResource(MR.strings.app_update_later))
+                    }
+                },
+            )
         }
 
         // Extensions updates

@@ -161,30 +161,30 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             return Result.retry()
         }
 
-        // KMK -->
-        libraryUpdateStatus.start()
+        return try {
+            // KMK -->
+            libraryUpdateStatus.updateProgress(0f)
+            libraryUpdateStatus.start()
+            deleteLibraryUpdateErrors.cleanUnrelevantMangaErrors()
+            // KMK <--
 
-        deleteLibraryUpdateErrors.cleanUnrelevantMangaErrors()
-        // KMK <--
+            setForegroundSafely()
 
-        setForegroundSafely()
+            val target = inputData.getString(KEY_TARGET)?.let { Target.valueOf(it) } ?: Target.CHAPTERS
 
-        val target = inputData.getString(KEY_TARGET)?.let { Target.valueOf(it) } ?: Target.CHAPTERS
+            // If this is a chapter update, set the last update time to now
+            if (target == Target.CHAPTERS) {
+                libraryPreferences.lastUpdatedTimestamp().set(Instant.now().toEpochMilli())
+            }
 
-        // If this is a chapter update, set the last update time to now
-        if (target == Target.CHAPTERS) {
-            libraryPreferences.lastUpdatedTimestamp().set(Instant.now().toEpochMilli())
-        }
+            val categoryId = inputData.getLong(KEY_CATEGORY, -1L)
+            // SY -->
+            val group = inputData.getInt(KEY_GROUP, LibraryGroup.BY_DEFAULT)
+            val groupExtra = inputData.getString(KEY_GROUP_EXTRA)
+            // SY <--
+            addMangaToQueue(categoryId, group, groupExtra)
 
-        val categoryId = inputData.getLong(KEY_CATEGORY, -1L)
-        // SY -->
-        val group = inputData.getInt(KEY_GROUP, LibraryGroup.BY_DEFAULT)
-        val groupExtra = inputData.getString(KEY_GROUP_EXTRA)
-        // SY <--
-        addMangaToQueue(categoryId, group, groupExtra)
-
-        return withIOContext {
-            try {
+            withIOContext {
                 when (target) {
                     Target.CHAPTERS -> updateChapterList()
                     // SY -->
@@ -193,20 +193,18 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                     // SY <--
                 }
                 Result.success()
-            } catch (e: Exception) {
-                if (e is CancellationException) {
-                    // Assume success although cancelled
-                    Result.success()
-                } else {
-                    logcat(LogPriority.ERROR, e)
-                    Result.failure()
-                }
-            } finally {
-                notifier.cancelProgressNotification()
-                // KMK -->
-                libraryUpdateStatus.stop()
-                // KMK <--
             }
+        } catch (e: CancellationException) {
+            // WorkManager still marks the request as cancelled; preserve the worker's cancellation semantics.
+            Result.success()
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e)
+            Result.failure()
+        } finally {
+            notifier.cancelProgressNotification()
+            // KMK -->
+            libraryUpdateStatus.stop()
+            // KMK <--
         }
     }
 
@@ -397,6 +395,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val semaphore = Semaphore(5)
         val progressCount = AtomicInt(0)
         val currentlyUpdatingManga = CopyOnWriteArrayList<Manga>()
+        val updateQueue = mangaToUpdate
+            // SY -->
+            .filterNot { it.manga.source in LIBRARY_UPDATE_EXCLUDED_SOURCES }
+            // SY <--
         val newUpdates = CopyOnWriteArrayList<Pair<Manga, Array<Chapter>>>()
         val failedUpdates = CopyOnWriteArrayList<Pair<Manga, String?>>()
         val hasDownloads = AtomicBoolean(false)
@@ -407,10 +409,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val fetchWindow = fetchInterval.getWindow(ZonedDateTime.now())
 
         coroutineScope {
-            mangaToUpdate.groupBy { it.manga.source }
-                // SY -->
-                .filterNot { it.key in LIBRARY_UPDATE_EXCLUDED_SOURCES }
-                // SY <--
+            updateQueue.groupBy { it.manga.source }
                 .values
                 .map { mangaInSource ->
                     async {
@@ -443,12 +442,19 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
                                 // Don't continue to update if manga is not in library
                                 if (getManga.await(manga.id)?.favorite != true) {
+                                    val completed = progressCount.incrementAndFetch()
+                                    notifier.showProgressNotification(
+                                        currentlyUpdatingManga,
+                                        completed,
+                                        updateQueue.size,
+                                    )
                                     return@forEach
                                 }
 
                                 withUpdateNotification(
                                     currentlyUpdatingManga,
                                     progressCount,
+                                    updateQueue.size,
                                     manga,
                                 ) {
                                     try {
@@ -649,6 +655,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
     private suspend fun withUpdateNotification(
         updatingManga: CopyOnWriteArrayList<Manga>,
         completed: AtomicInt,
+        total: Int,
         manga: Manga,
         block: suspend () -> Unit,
     ) = coroutineScope {
@@ -658,7 +665,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         notifier.showProgressNotification(
             updatingManga,
             completed.load(),
-            mangaToUpdate.size,
+            total,
         )
 
         block()
@@ -670,7 +677,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         notifier.showProgressNotification(
             updatingManga,
             completed.load(),
-            mangaToUpdate.size,
+            total,
         )
     }
 

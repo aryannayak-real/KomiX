@@ -917,6 +917,15 @@
 
     <!-- Library update service notifications -->
     <string name="notification_updating_progress">Updating library… (%s)</string>
+    <string name="notification_update_count">Manga %1$d of %2$d</string>
+    <string name="notification_update_preparing">Preparing library update</string>
+    <string name="join_discord">Join our Discord</string>
+    <string name="discord_link_unavailable">No app is available to open this invite link.</string>
+    <string name="app_update_available_title">KomiX %s is available</string>
+    <string name="app_update_release_notes_unavailable">No release notes were provided.</string>
+    <string name="app_update_later">Later</string>
+    <string name="app_update_now">Update now</string>
+    <string name="app_update_open_failed">Unable to open the KomiX release page.</string>
     <string name="notification_size_warning">Large updates harm sources and may lead to slower updates and also increased battery usage. Tap to learn more.</string>
     <string name="notification_new_chapters">New chapters found</string>
     <string name="notification_chapters_single">Chapter %1$s</string>
