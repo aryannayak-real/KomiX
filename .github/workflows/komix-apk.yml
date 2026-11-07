@@ -115,7 +115,7 @@ jobs:
           cp "$arm64_apk" artifacts/KomiX-arm64-v8a.apk
 
       - name: Upload universal APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: KomiX-universal-APK
           path: artifacts/KomiX-universal.apk
@@ -123,7 +123,7 @@ jobs:
           retention-days: 7
 
       - name: Upload ARM64 APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: KomiX-arm64-v8a-APK
           path: artifacts/KomiX-arm64-v8a.apk
