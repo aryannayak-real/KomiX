@@ -1,3 +1,4 @@
+import java.util.Properties
 import mihon.buildlogic.Config
 import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
@@ -22,7 +23,20 @@ if (Config.includeTelemetry) {
 
 shortcutHelper.setFilePath("./shortcuts.xml")
 
+val keystoreProperties = Properties().apply {
+    rootProject.file("keystore.properties").inputStream().use { load(it) }
+}
+
 android {
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+        }
+    }
+
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
@@ -46,6 +60,7 @@ android {
             isPseudoLocalesEnabled = true
         }
         val release by getting {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = Config.enableCodeShrink
             isShrinkResources = Config.enableCodeShrink
 

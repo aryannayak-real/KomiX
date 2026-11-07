@@ -1,16 +1,17 @@
-# KomiX-specific APK workflow replacing inherited release automation.
-name: Build KomiX APK
+name: Build KomiX Release APK
 
 on:
   workflow_dispatch:
   push:
+    tags:
+      - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build signed stable APKs
     runs-on: ubuntu-24.04
 
     steps:
@@ -26,73 +27,115 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Assemble debug APK
-        run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Prepare release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KOMIX_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KOMIX_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KOMIX_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KOMIX_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          mkdir -p keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > keystore/komix-release.jks
+          chmod 600 keystore/komix-release.jks
+          export STORE_PASSWORD KEY_ALIAS KEY_PASSWORD
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
 
-      - name: Verify and stage installable APKs
+          def escape(value):
+              for old, new in [
+                  ("\\", "\\\\"),
+                  ("\n", "\\n"),
+                  ("\r", "\\r"),
+                  ("\t", "\\t"),
+                  ("=", "\\="),
+                  (":", "\\:"),
+                  ("#", "\\#"),
+                  ("!", "\\!"),
+              ]:
+                  value = value.replace(old, new)
+              return value
+
+          lines = [
+              "storeFile=keystore/komix-release.jks",
+              "storePassword=" + escape(os.environ["STORE_PASSWORD"]),
+              "keyAlias=" + escape(os.environ["KEY_ALIAS"]),
+              "keyPassword=" + escape(os.environ["KEY_PASSWORD"]),
+          ]
+          Path("keystore.properties").write_text("\n".join(lines) + "\n")
+          PY
+          chmod 600 keystore.properties
+
+      - name: Assemble stable release APKs
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      - name: Verify and stage APKs
         shell: bash
         run: |
           set -euo pipefail
-          apk_dir="app/build/outputs/apk/debug"
+          apk_dir="app/build/outputs/apk/release"
           universal_apk="$(find "$apk_dir" -maxdepth 1 -type f -iname '*universal*.apk' -print -quit)"
           arm64_apk="$(find "$apk_dir" -maxdepth 1 -type f -iname '*arm64-v8a*.apk' -print -quit)"
 
           if [[ -z "$universal_apk" || -z "$arm64_apk" ]]; then
-            echo "::error::Expected universal and arm64-v8a debug APKs in $apk_dir."
+            echo "::error::Expected universal and arm64-v8a release APKs."
             find "$apk_dir" -maxdepth 1 -type f -print || true
             exit 1
           fi
 
           sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          if [[ -z "$sdk_root" || ! -d "$sdk_root/build-tools" ]]; then
-            echo "::error::Android SDK build-tools were not found; cannot verify the generated APKs."
-            exit 1
-          fi
           build_tools="$(find "$sdk_root/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -n 1)"
           apksigner="$build_tools/apksigner"
           aapt="$build_tools/aapt"
-          if [[ ! -x "$apksigner" || ! -x "$aapt" ]]; then
-            echo "::error::Android build-tools must provide executable apksigner and aapt."
-            exit 1
-          fi
 
           "$apksigner" verify --verbose "$universal_apk"
           "$apksigner" verify --verbose "$arm64_apk"
 
           universal_info="$("$aapt" dump badging "$universal_apk")"
           arm64_info="$("$aapt" dump badging "$arm64_apk")"
+
           for info in "$universal_info" "$arm64_info"; do
-            grep -Fq "package: name='app.komikku.dev'" <<< "$info"
+            grep -Fq "package: name='app.komikku'" <<< "$info"
             grep -Fq "versionName='1.14.3'" <<< "$info"
             grep -Fq "versionCode='84'" <<< "$info"
             grep -Fq "sdkVersion:'26'" <<< "$info"
             grep -Fq "targetSdkVersion:'36'" <<< "$info"
           done
-          if ! grep -Fq "'arm64-v8a'" <<< "$arm64_info"; then
-            echo "::error::The ARM64 APK does not report the arm64-v8a native ABI."
-            exit 1
-          fi
-          if ! grep -Fq "'arm64-v8a'" <<< "$universal_info"; then
-            echo "::error::The universal APK does not contain arm64-v8a native libraries."
-            exit 1
-          fi
+
+          grep -Fq "'arm64-v8a'" <<< "$arm64_info"
+          grep -Fq "'arm64-v8a'" <<< "$universal_info"
 
           mkdir -p artifacts
-          cp "$universal_apk" artifacts/KomiX-universal-debug.apk
-          cp "$arm64_apk" artifacts/KomiX-arm64-v8a-debug.apk
+          cp "$universal_apk" artifacts/KomiX-universal.apk
+          cp "$arm64_apk" artifacts/KomiX-arm64-v8a.apk
 
-      - name: Upload universal debug APK
+      - name: Upload universal APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KomiX-universal-debug-APK
-          path: artifacts/KomiX-universal-debug.apk
+          name: KomiX-universal-APK
+          path: artifacts/KomiX-universal.apk
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload ARM64 debug APK
+      - name: Upload ARM64 APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KomiX-arm64-v8a-debug-APK
-          path: artifacts/KomiX-arm64-v8a-debug.apk
+          name: KomiX-arm64-v8a-APK
+          path: artifacts/KomiX-arm64-v8a.apk
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: KomiX ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            artifacts/KomiX-universal.apk
+            artifacts/KomiX-arm64-v8a.apk
