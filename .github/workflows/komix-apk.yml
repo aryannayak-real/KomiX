@@ -73,6 +73,16 @@ jobs:
           PY
           chmod 600 keystore.properties
 
+      - name: Validate release signing key
+        env:
+          STORE_PASSWORD: ${{ secrets.KOMIX_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KOMIX_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KOMIX_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keytool -list -keystore keystore/komix-release.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS"
+          keytool -certreq -keystore keystore/komix-release.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" -keypass "$KEY_PASSWORD" -file "$RUNNER_TEMP/komix-check.csr"
+
       - name: Assemble stable release APKs
         run: ./gradlew --no-daemon :app:assembleRelease
 
