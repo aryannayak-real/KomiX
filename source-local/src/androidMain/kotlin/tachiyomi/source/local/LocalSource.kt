@@ -424,6 +424,7 @@ class LocalSource(
                 ?: throw Exception(context.stringResource(MR.strings.chapter_not_found))
         } catch (_: Format.UnknownFormatException) {
             throw Exception(context.stringResource(MR.strings.local_invalid_format))
+        }
     }
 
     private fun updateCover(chapter: SChapter, manga: SManga): UniFile? {
