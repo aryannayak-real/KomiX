@@ -17,12 +17,9 @@ actual class LocalCoverManager(
     private val context: Context,
     private val fileSystem: LocalSourceFileSystem,
 ) {
-
     actual fun find(mangaUrl: String): UniFile? {
         return fileSystem.getFilesInMangaDirectory(mangaUrl)
-            // Get all file whose names start with "cover"
             .filter { it.isFile && it.nameWithoutExtension.equals("cover", ignoreCase = true) }
-            // Get the first actual image
             .firstOrNull {
                 ImageUtil.isImage(it.name) { it.openInputStream() } || it.name == COVER_ARCHIVE_NAME
             }
@@ -31,48 +28,50 @@ actual class LocalCoverManager(
     actual fun update(
         manga: SManga,
         inputStream: InputStream,
-        // SY -->
         encrypted: Boolean,
-        // SY <--
     ): UniFile? {
-        val directory = fileSystem.getMangaDirectory(manga.url)
-        if (directory == null) {
-            inputStream.close()
-            return null
-        }
+        return inputStream.use { input ->
+            val directory = fileSystem.getMangaDirectory(manga.url) ?: return@use null
 
-        var targetFile = find(manga.url)
-        if (targetFile == null) {
-            // SY -->
-            targetFile = if (encrypted) {
-                directory.createFile(COVER_ARCHIVE_NAME)
-            } else {
-                directory.createFile(DEFAULT_COVER_NAME)
-            }
-            // SY <--
-        }
+            val targetFile = fileSystem.getFilesInMangaDirectory(manga.url)
+                .firstOrNull {
+                    it.isFile &&
+                        it.nameWithoutExtension.equals("cover", ignoreCase = true) &&
+                        if (encrypted) {
+                            it.name == COVER_ARCHIVE_NAME
+                        } else {
+                            it.name != COVER_ARCHIVE_NAME &&
+                                ImageUtil.isImage(it.name) { it.openInputStream() }
+                        }
+                }
+                ?: directory.createFile(if (encrypted) COVER_ARCHIVE_NAME else DEFAULT_COVER_NAME)
+                ?: return@use null
 
-        targetFile!!
-
-        inputStream.use { input ->
-            // SY -->
             if (encrypted) {
                 ZipWriter(context, targetFile, encrypt = true).use { writer ->
-                    writer.write(inputStream.readBytes(), DEFAULT_COVER_NAME)
+                    writer.write(input.readBytes(), DEFAULT_COVER_NAME)
                 }
-                DiskUtil.createNoMediaFile(directory, context)
-
-                manga.thumbnail_url = targetFile.uri.toString()
-                return targetFile
             } else {
-                // SY <--
                 targetFile.openOutputStream().use { output ->
                     input.copyTo(output)
                 }
-                DiskUtil.createNoMediaFile(directory, context)
-                manga.thumbnail_url = targetFile.uri.toString()
-                return targetFile
             }
+
+            fileSystem.getFilesInMangaDirectory(manga.url)
+                .filter {
+                    it.isFile &&
+                        it.nameWithoutExtension.equals("cover", ignoreCase = true) &&
+                        if (encrypted) {
+                            it.name != COVER_ARCHIVE_NAME
+                        } else {
+                            it.name == COVER_ARCHIVE_NAME
+                        }
+                }
+                .forEach { it.delete() }
+
+            DiskUtil.createNoMediaFile(directory, context)
+            manga.thumbnail_url = targetFile.uri.toString()
+            targetFile
         }
     }
 }

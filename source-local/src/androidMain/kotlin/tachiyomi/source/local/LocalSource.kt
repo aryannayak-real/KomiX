@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.util.lang.compareToCaseInsensitiveNaturalOrder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
@@ -287,7 +288,9 @@ class LocalSource(
                     }
                 }
             }
-        } catch (e: Throwable) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Error setting manga details from local metadata for ${manga.title}" }
         }
 
@@ -421,9 +424,6 @@ class LocalSource(
                 ?: throw Exception(context.stringResource(MR.strings.chapter_not_found))
         } catch (_: Format.UnknownFormatException) {
             throw Exception(context.stringResource(MR.strings.local_invalid_format))
-        } catch (e: Exception) {
-            throw e
-        }
     }
 
     private fun updateCover(chapter: SChapter, manga: SManga): UniFile? {
@@ -461,7 +461,7 @@ class LocalSource(
                     }
                 }
             }
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Error updating cover for ${manga.title}" }
             null
         }

@@ -42,8 +42,8 @@ android {
     defaultConfig {
         applicationId = "com.komix.app"
 
-        versionCode = 84
-        versionName = "1.14.3"
+        versionCode = 85
+        versionName = "1.14.4"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getGitSha()}\"")
